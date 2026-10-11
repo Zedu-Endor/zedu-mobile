@@ -488,8 +488,7 @@ export function createBuzzModalStyles(colors: ThemeColors) {
       alignItems: 'center',
     },
     joinButtonDisabled: {
-      backgroundColor: colors.border,
-      opacity: 0.6,
+      opacity: 0.5,
     },
     joinButtonText: {
       color: colors.white,
