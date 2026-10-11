@@ -343,7 +343,9 @@ const MessageItem = ({
             {item.sent &&
               (sendStatus === 'sending' || sendStatus === 'sent') && (
                 <Ionicons
-                  name="checkmark-done"
+                  name={
+                    sendStatus === 'sending' ? 'checkmark' : 'checkmark-done'
+                  }
                   size={13}
                   color={colors.primary}
                   style={

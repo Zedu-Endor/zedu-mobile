@@ -566,11 +566,15 @@ const ChatDetailScreen = ({ navigation }: any) => {
               onEdit={onEdit}
               sendStatus={sendStatuses[item.thread_id]}
               onRetry={() => handleRetryMessage(item)}
-              onDelete={() =>
+              onDelete={() => {
+                dispatch({
+                  type: ACTIONS.DELETE_DM_MESSAGE,
+                  payload: { threadId: item.thread_id },
+                });
                 setDeletedMessageIds(
                   previous => new Set([...previous, item.thread_id]),
-                )
-              }
+                );
+              }}
             />
           </View>
         )}
