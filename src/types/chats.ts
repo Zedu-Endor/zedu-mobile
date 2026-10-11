@@ -48,6 +48,7 @@ export interface ChatItem {
   media: [];
   message: string;
   messages: any;
+  mentions?: any[];
   org_id: string;
   pinned_details: any;
   reactions: any;
@@ -57,6 +58,7 @@ export interface ChatItem {
   user_id: string;
   user_type: string;
   username: string;
+  isOptimistic?: boolean;
 }
 
 export interface Group {

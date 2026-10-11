@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, TouchableOpacity, Dimensions } from 'react-native';
+import { View, TouchableOpacity, Dimensions, StyleSheet } from 'react-native';
 import { AppText } from '@/components/ui/text';
 import { useTheme } from '@/theme/ThemeProvider';
 import { createMessageItemStyles } from '@/theme/createMessageStyles';
@@ -36,10 +36,47 @@ const MessageItem = ({
   onLongPress,
   editMsgId,
   onEdit,
+  sendStatus,
+  onRetry,
+  onDelete,
 }: any) => {
   const { colors } = useTheme();
   const styles = useMemo(
     () => createMessageItemStyles(colors, width),
+    [colors],
+  );
+  const sendStyles = useMemo(
+    () =>
+      StyleSheet.create({
+        failedBubble: {
+          backgroundColor: `${colors.error}1A`,
+          borderColor: colors.error,
+          borderWidth: 1,
+        },
+        sendingIcon: { marginLeft: 4, opacity: 0.5 },
+        sentIcon: { marginLeft: 4 },
+        sendingText: { textAlign: 'right', opacity: 0.7 },
+        failedActions: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          marginTop: 2,
+        },
+        failedLabel: { color: colors.error, marginLeft: 4 },
+        actionDivider: {
+          width: 1,
+          height: 12,
+          marginHorizontal: 7,
+          backgroundColor: colors.error,
+          opacity: 0.35,
+        },
+        sendAction: {
+          minHeight: 44,
+          justifyContent: 'center',
+          paddingHorizontal: 4,
+        },
+        retryText: { color: colors.primary },
+      }),
     [colors],
   );
   const [viewerVisible, setViewerVisible] = React.useState(false);
@@ -277,6 +314,9 @@ const MessageItem = ({
           style={[
             styles.bubble,
             item.sent ? styles.sentBubble : styles.receivedBubble,
+            item.sent && sendStatus === 'failed'
+              ? sendStyles.failedBubble
+              : undefined,
             editMsgId === item.thread_id && onEdit
               ? { backgroundColor: colors.chatHighlight }
               : undefined,
@@ -300,7 +340,28 @@ const MessageItem = ({
             <AppText size={10} style={styles.timeText}>
               {moment(item.created_at).format('LT')}
             </AppText>
+            {item.sent &&
+              (sendStatus === 'sending' || sendStatus === 'sent') && (
+                <Ionicons
+                  name="checkmark-done"
+                  size={13}
+                  color={colors.primary}
+                  style={
+                    sendStatus === 'sending'
+                      ? sendStyles.sendingIcon
+                      : sendStyles.sentIcon
+                  }
+                />
+              )}
           </View>
+          {item.sent && sendStatus === 'sending' && (
+            <AppText
+              size={10}
+              style={[styles.timeText, sendStyles.sendingText]}
+            >
+              Sending…
+            </AppText>
+          )}
           {item.edited && (
             <AppText size={10} style={styles.timeText}>
               Edited
@@ -310,6 +371,39 @@ const MessageItem = ({
           {renderReactions()}
         </View>
       </TouchableOpacity>
+
+      {item.sent && sendStatus === 'failed' && (
+        <View style={sendStyles.failedActions}>
+          <Ionicons
+            name="alert-circle-outline"
+            size={13}
+            color={colors.error}
+          />
+          <AppText size={10} style={sendStyles.failedLabel}>
+            Not sent
+          </AppText>
+          <View style={sendStyles.actionDivider} />
+          <TouchableOpacity
+            onPress={onRetry}
+            hitSlop={8}
+            style={sendStyles.sendAction}
+          >
+            <AppText size={10} variant="bold" style={sendStyles.retryText}>
+              Retry
+            </AppText>
+          </TouchableOpacity>
+          <View style={sendStyles.actionDivider} />
+          <TouchableOpacity
+            onPress={onDelete}
+            hitSlop={8}
+            style={sendStyles.sendAction}
+          >
+            <AppText size={10} style={styles.timeText}>
+              Delete
+            </AppText>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {item.message_count > 0 && renderReplyParticipants()}
 
