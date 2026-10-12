@@ -18,6 +18,7 @@ export type ChannelStackParamList = {
     | {
         channel_id?: string;
         fromNotification?: boolean;
+        initialUnreadCount?: number;
       }
     | undefined;
   ChannelDetails: {

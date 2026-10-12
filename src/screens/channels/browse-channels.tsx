@@ -56,14 +56,11 @@ const BrowseChannel = () => {
 
     navigation.navigate('ChannelStack', {
       screen: 'ChannelChat',
+      params: {
+        channel_id: props?.channels_id,
+        initialUnreadCount: props?.thread_count,
+      },
     });
-
-    if (props?.thread_count > 0) {
-      dispatch({
-        type: ACTIONS.RESET_CHANNEL_THREAD_COUNT,
-        payload: props?.channels_id,
-      });
-    }
   };
 
   return (

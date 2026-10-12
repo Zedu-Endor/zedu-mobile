@@ -89,14 +89,112 @@ const ChannelChatScreen = ({ navigation, route }: any) => {
   const [returnLoading, setReturnLoading] = useState(true);
 
   const mentionUserSheetRef = useRef<MentionUserBottomSheetRef>(null);
-  const { fromNotification, channel_id: routeChannelId } = route?.params || {};
+  const {
+    fromNotification,
+    channel_id: routeChannelId,
+    initialUnreadCount: routeUnreadCount,
+  } = route?.params || {};
 
   const channel_id =
     routeChannelId || channel?.channels_id || channel?.channel_id;
+  const initialUnreadCount = routeUnreadCount ?? channel?.thread_count ?? 0;
   const { loadMore, isFetchingMore } = UseChannelChat({
     channel_id: channel_id as string,
   });
   const { uploadFiles, clearUploads } = useFileUpload();
+
+  const oldestUnreadIdRef = useRef<string | null>(null);
+  const unreadIdsRef = useRef<Set<string>>(new Set());
+  const isUnreadInitializedRef = useRef(false);
+  const lastChannelIdRef = useRef(channel_id);
+  const channelIdRef = useRef(channel_id);
+  const dispatchRef = useRef(dispatch);
+
+  useEffect(() => {
+    channelIdRef.current = channel_id;
+  }, [channel_id]);
+
+  useEffect(() => {
+    dispatchRef.current = dispatch;
+  }, [dispatch]);
+
+  if (lastChannelIdRef.current !== channel_id) {
+    lastChannelIdRef.current = channel_id;
+    isUnreadInitializedRef.current = false;
+    oldestUnreadIdRef.current = null;
+    unreadIdsRef.current = new Set();
+  }
+
+  /**
+   * Initialize unread message IDs and detect oldest unread message for visual separator
+   * synchronously during render when messages are available.
+   */
+  if (
+    !isUnreadInitializedRef.current &&
+    channelsChat &&
+    channelsChat.length > 0 &&
+    initialUnreadCount > 0
+  ) {
+    isUnreadInitializedRef.current = true;
+    const count = Math.min(initialUnreadCount, channelsChat.length);
+    const unreadList = channelsChat.slice(0, count);
+    const oldest = unreadList[unreadList.length - 1];
+    if (oldest) {
+      oldestUnreadIdRef.current = oldest.thread_id;
+    }
+    unreadIdsRef.current = new Set(unreadList.map((m: any) => m.thread_id));
+  }
+
+  /**
+   * Viewability configuration for viewport-based message reading.
+   * Items are considered read when at least 50% visible in the viewport.
+   */
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50,
+  }).current;
+
+  /**
+   * Decrements or clears unread badge count as unread messages scroll into the viewport.
+   */
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: Array<{ item: any }> }) => {
+      if (
+        !unreadIdsRef.current ||
+        unreadIdsRef.current.size === 0 ||
+        !channelIdRef.current
+      ) {
+        return;
+      }
+
+      let countChanged = false;
+      for (const token of viewableItems) {
+        const id = token.item?.thread_id;
+        if (id && unreadIdsRef.current.has(id)) {
+          unreadIdsRef.current.delete(id);
+          countChanged = true;
+        }
+      }
+
+      if (countChanged) {
+        const remaining = unreadIdsRef.current.size;
+        const targetId = channelIdRef.current;
+        if (remaining === 0) {
+          dispatchRef.current({
+            type: ACTIONS.RESET_CHANNEL_THREAD_COUNT,
+            payload: targetId,
+          });
+        } else {
+          dispatchRef.current({
+            type: ACTIONS.SET_CHANNEL_THREAD_COUNT,
+            payload: {
+              channels_id: targetId,
+              thread_count: remaining,
+            },
+          });
+        }
+      }
+    },
+  ).current;
 
   const { clearDraft, restoreDraft } = useMessageDraft({
     scope: 'channel',
@@ -612,6 +710,8 @@ const ChannelChatScreen = ({ navigation, route }: any) => {
           data={channelsChat}
           inverted
           keyExtractor={(item, index) => `${item.thread_id}-${index}`}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={viewabilityConfig}
           renderItem={({ item, index }) => (
             <View
               style={{
@@ -621,6 +721,17 @@ const ChannelChatScreen = ({ navigation, route }: any) => {
                     : 'transparent',
               }}
             >
+              {item.thread_id === oldestUnreadIdRef.current && (
+                <View style={styles.unreadSeparatorContainer}>
+                  <View style={styles.unreadSeparatorLine} />
+                  <View style={styles.unreadSeparatorBadge}>
+                    <AppText style={styles.unreadSeparatorText}>
+                      Unread Messages
+                    </AppText>
+                  </View>
+                  <View style={styles.unreadSeparatorLine} />
+                </View>
+              )}
               <MessageItem
                 item={{
                   ...item,

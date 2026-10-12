@@ -206,15 +206,9 @@ export async function openChatFromNotification(
     params: {
       channel_id: payload.channel_id,
       fromNotification: true,
+      initialUnreadCount: channel?.thread_count,
     },
   });
-
-  if (channel?.thread_count > 0) {
-    dispatch({
-      type: ACTIONS.RESET_CHANNEL_THREAD_COUNT,
-      payload: channel.channels_id || payload.channel_id,
-    });
-  }
 
   dispatch({ type: ACTIONS.CHANNEL_CALLBACK, payload: !channelCallback });
   return true;

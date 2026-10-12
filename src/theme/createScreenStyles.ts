@@ -297,6 +297,29 @@ export function createChatDetailStyles(colors: ThemeColors) {
       color: colors.white,
       fontSize: 16,
     },
+    unreadSeparatorContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginVertical: 12,
+      paddingHorizontal: 12,
+    },
+    unreadSeparatorLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: colors.error,
+    },
+    unreadSeparatorBadge: {
+      paddingHorizontal: 10,
+      paddingVertical: 3,
+      borderRadius: 12,
+      backgroundColor: colors.error,
+      marginHorizontal: 8,
+    },
+    unreadSeparatorText: {
+      color: colors.white,
+      fontSize: 11,
+      fontWeight: '600',
+    },
   });
 }
 
