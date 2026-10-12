@@ -65,6 +65,7 @@ export enum ACTIONS {
   UPDATE_CHANNEL_REACTIONS = 'UPDATE_CHANNEL_REACTIONS',
   RESET_CHANNEL_THREAD_COUNT = 'RESET_CHANNEL_THREAD_COUNT',
   SET_CHANNEL_THREAD_COUNT = 'SET_CHANNEL_THREAD_COUNT',
+  DECREMENT_CHANNEL_THREAD_COUNT = 'DECREMENT_CHANNEL_THREAD_COUNT',
   DELETE_CHANNEL_MESSAGE = 'DELETE_CHANNEL_MESSAGE',
   CHANNEL_CALLBACK = 'CHANNEL_CALLBACK',
   REPLY_CALLBACK = 'REPLY_CALLBACK',
@@ -371,6 +372,14 @@ interface SetChannelThreadCountAction {
   };
 }
 
+interface DecrementChannelThreadCountAction {
+  type: ACTIONS.DECREMENT_CHANNEL_THREAD_COUNT;
+  payload: {
+    channels_id: string;
+    viewed: number;
+  };
+}
+
 interface DeleteChannelMessageAction {
   type: ACTIONS.DELETE_CHANNEL_MESSAGE;
   payload: {
@@ -603,6 +612,7 @@ export type Action =
   | UpdateChannelReactionsAction
   | ResetChannelCountAction
   | SetChannelThreadCountAction
+  | DecrementChannelThreadCountAction
   | DeleteChannelMessageAction
   | ChannelCallbackAction
   | EditChannelMessageAction

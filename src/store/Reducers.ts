@@ -627,17 +627,11 @@ const reducers = (state: AppState, action: Action): AppState => {
         ...state,
         channel:
           state.channel?.channels_id === action.payload
-            ? { ...state.channel, thread_count: 0, mention_count: 0 }
+            ? { ...state.channel, thread_count: 0 }
             : state.channel,
-        dms: state.dms.map(chat =>
-          chat.channel_id === action.payload && chat.thread_count > 0
-            ? { ...chat, thread_count: 0 }
-            : chat,
-        ),
         userChannels: state.userChannels.map(channel =>
-          channel.channels_id === action.payload &&
-          (channel.thread_count > 0 || channel.mention_count > 0)
-            ? { ...channel, thread_count: 0, mention_count: 0 }
+          channel.channels_id === action.payload && channel.thread_count > 0
+            ? { ...channel, thread_count: 0 }
             : channel,
         ),
       };
@@ -656,7 +650,36 @@ const reducers = (state: AppState, action: Action): AppState => {
             ? {
                 ...channel,
                 thread_count: count,
-                mention_count: count === 0 ? 0 : channel.mention_count,
+              }
+            : channel,
+        ),
+      };
+    }
+
+    case ACTIONS.DECREMENT_CHANNEL_THREAD_COUNT: {
+      const { channels_id, viewed } = action.payload;
+      const decrement = Math.max(0, viewed);
+      if (decrement === 0) return state;
+      return {
+        ...state,
+        channel:
+          state.channel?.channels_id === channels_id
+            ? {
+                ...state.channel,
+                thread_count: Math.max(
+                  0,
+                  (state.channel.thread_count ?? 0) - decrement,
+                ),
+              }
+            : state.channel,
+        userChannels: state.userChannels.map(channel =>
+          channel.channels_id === channels_id
+            ? {
+                ...channel,
+                thread_count: Math.max(
+                  0,
+                  (channel.thread_count ?? 0) - decrement,
+                ),
               }
             : channel,
         ),

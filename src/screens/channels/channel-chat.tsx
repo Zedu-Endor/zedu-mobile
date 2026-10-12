@@ -47,6 +47,7 @@ import { ShowNotify } from '@/components/ui/toast';
 import buzzService from '@/services/buzz.service';
 import ChatBackground from '@/components/layout/chat/chat-background';
 import { useMessageDraft } from '@/hooks/useMessageDraft';
+import type { ViewToken, ViewabilityConfig } from 'react-native';
 
 const ChannelChatScreen = ({ navigation, route }: any) => {
   const { colors } = useTheme();
@@ -97,104 +98,195 @@ const ChannelChatScreen = ({ navigation, route }: any) => {
 
   const channel_id =
     routeChannelId || channel?.channels_id || channel?.channel_id;
-  const initialUnreadCount = routeUnreadCount ?? channel?.thread_count ?? 0;
+  // Snapshot the navigation-time badge once. channel.thread_count is mutated
+  // to 0 by this same screen, so re-reading it on later renders is stale.
+  const initialUnreadCountRef = useRef(routeUnreadCount ?? 0);
   const { loadMore, isFetchingMore } = UseChannelChat({
     channel_id: channel_id as string,
   });
   const { uploadFiles, clearUploads } = useFileUpload();
 
+  // Separator ID lives in state so the FlatList re-renders when it resolves.
+  // The ref below is a read-only mirror for the viewability callback,
+  // written only inside effects (never during render).
+  const [oldestUnreadId, setOldestUnreadId] = useState<string | null>(null);
   const oldestUnreadIdRef = useRef<string | null>(null);
+  const [unreadIds, setUnreadIds] = useState<Set<string>>(new Set());
+  const [untrackedUnreadCount, setUntrackedUnreadCount] = useState(0);
+  const [unreadInitialized, setUnreadInitialized] = useState(false);
   const unreadIdsRef = useRef<Set<string>>(new Set());
-  const isUnreadInitializedRef = useRef(false);
-  const lastChannelIdRef = useRef(channel_id);
-  const channelIdRef = useRef(channel_id);
-  const dispatchRef = useRef(dispatch);
+  const channelIdRef = useRef<string | undefined>(channel_id);
 
   useEffect(() => {
     channelIdRef.current = channel_id;
   }, [channel_id]);
 
+  // Reset tracking after commit when switching channels. Never mutate refs
+  // during render: a discarded render would leave a stale channel ID / set.
   useEffect(() => {
-    dispatchRef.current = dispatch;
-  }, [dispatch]);
-
-  if (lastChannelIdRef.current !== channel_id) {
-    lastChannelIdRef.current = channel_id;
-    isUnreadInitializedRef.current = false;
-    oldestUnreadIdRef.current = null;
+    initialUnreadCountRef.current = routeUnreadCount ?? 0;
     unreadIdsRef.current = new Set();
-  }
+    setUnreadIds(new Set());
+    setOldestUnreadId(null);
+    setUntrackedUnreadCount(0);
+    setUnreadInitialized(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channel_id]);
+
+  useEffect(() => {
+    unreadIdsRef.current = unreadIds;
+  }, [unreadIds]);
+
+  useEffect(() => {
+    oldestUnreadIdRef.current = oldestUnreadId;
+  }, [oldestUnreadId]);
 
   /**
-   * Initialize unread message IDs and detect oldest unread message for visual separator
-   * synchronously during render when messages are available.
+   * Initialize unread IDs after commit when the first page is available.
+   * Sorts newest-first explicitly instead of assuming channelsChat[0] is
+   * newest, and keeps messages outside the loaded page in untrackedUnreadCount
+   * so viewing the first page cannot RESET a larger badge to zero.
    */
-  if (
-    !isUnreadInitializedRef.current &&
-    channelsChat &&
-    channelsChat.length > 0 &&
-    initialUnreadCount > 0
-  ) {
-    isUnreadInitializedRef.current = true;
-    const count = Math.min(initialUnreadCount, channelsChat.length);
-    const unreadList = channelsChat.slice(0, count);
+  useEffect(() => {
+    if (unreadInitialized) return;
+    if (!channelsChat || channelsChat.length === 0) return;
+    const snapshot = initialUnreadCountRef.current;
+    if (!(snapshot > 0)) return;
+    const sorted = [...channelsChat].sort(
+      (a: any, b: any) =>
+        new Date(b?.created_at).getTime() - new Date(a?.created_at).getTime(),
+    );
+    const count = Math.min(snapshot, sorted.length);
+    const unreadList = sorted.slice(0, count);
     const oldest = unreadList[unreadList.length - 1];
-    if (oldest) {
-      oldestUnreadIdRef.current = oldest.thread_id;
-    }
-    unreadIdsRef.current = new Set(unreadList.map((m: any) => m.thread_id));
-  }
+    setOldestUnreadId(oldest?.thread_id ?? null);
+    setUnreadIds(new Set(unreadList.map((m: any) => m.thread_id)));
+    setUntrackedUnreadCount(Math.max(0, snapshot - count));
+    setUnreadInitialized(true);
+  }, [channelsChat, unreadInitialized]);
 
   /**
-   * Viewability configuration for viewport-based message reading.
-   * Items are considered read when at least 50% visible in the viewport.
+   * Viewability configuration. itemVisiblePercentThreshold is a fraction of
+   * the item itself, so a message taller than 2x the viewport can never hit
+   * 50%. viewAreaCoveragePercentThreshold covers the viewport instead.
    */
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50,
+  const viewabilityConfig: ViewabilityConfig = useRef({
+    minimumViewTime: 250,
+    viewAreaCoveragePercentThreshold: 50,
   }).current;
 
+  const untrackedRef = useRef(untrackedUnreadCount);
+  useEffect(() => {
+    untrackedRef.current = untrackedUnreadCount;
+  }, [untrackedUnreadCount]);
+
   /**
-   * Decrements or clears unread badge count as unread messages scroll into the viewport.
+   * Decrements the badge atomically as unread messages scroll into view.
+   * Never assigns unreadIds.size directly: a newer count may have arrived
+   * since the snapshot. RESET is handled separately once tracked AND
+   * untracked unreads are all viewed.
    */
-  const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: Array<{ item: any }> }) => {
-      if (
-        !unreadIdsRef.current ||
-        unreadIdsRef.current.size === 0 ||
-        !channelIdRef.current
-      ) {
-        return;
-      }
+  const onViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: Array<ViewToken> }) => {
+      const tracked = unreadIdsRef.current;
+      const targetId = channelIdRef.current;
+      if (!tracked || tracked.size === 0 || !targetId) return;
 
-      let countChanged = false;
+      let viewed = 0;
       for (const token of viewableItems) {
-        const id = token.item?.thread_id;
-        if (id && unreadIdsRef.current.has(id)) {
-          unreadIdsRef.current.delete(id);
-          countChanged = true;
+        const id = (token.item as any)?.thread_id;
+        if (id && tracked.has(id)) {
+          tracked.delete(id);
+          viewed += 1;
         }
       }
 
-      if (countChanged) {
-        const remaining = unreadIdsRef.current.size;
-        const targetId = channelIdRef.current;
-        if (remaining === 0) {
-          dispatchRef.current({
-            type: ACTIONS.RESET_CHANNEL_THREAD_COUNT,
-            payload: targetId,
-          });
-        } else {
-          dispatchRef.current({
-            type: ACTIONS.SET_CHANNEL_THREAD_COUNT,
-            payload: {
-              channels_id: targetId,
-              thread_count: remaining,
-            },
-          });
-        }
-      }
+      if (viewed === 0) return;
+      const separatorViewed =
+        oldestUnreadIdRef.current !== null &&
+        !tracked.has(oldestUnreadIdRef.current);
+      setUnreadIds(new Set(tracked));
+      if (separatorViewed) setOldestUnreadId(null);
+      dispatch({
+        type: ACTIONS.DECREMENT_CHANNEL_THREAD_COUNT,
+        payload: { channels_id: targetId, viewed },
+      });
     },
-  ).current;
+    [dispatch],
+  );
+
+  /**
+   * Track unread messages that arrive after initialization (live Centrifugo
+   * prepends while the badge may have been 0 at navigation time).
+   * Own + optimistic messages were never unread, so skip them.
+   */
+  const prevChatIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!unreadInitialized) {
+      prevChatIdsRef.current = new Set(
+        (channelsChat || []).map((m: any) => m.thread_id),
+      );
+      return;
+    }
+    const prevIds = prevChatIdsRef.current;
+    prevChatIdsRef.current = new Set(
+      (channelsChat || []).map((m: any) => m.thread_id),
+    );
+    const incoming = (channelsChat || []).filter(
+      (m: any) =>
+        m?.thread_id &&
+        !prevIds.has(m.thread_id) &&
+        !m?.isOptimistic &&
+        m?.user_id !== undefined &&
+        m?.user_id !== null &&
+        String(m.user_id) !== String(user?.user_id ?? user?.id ?? ''),
+    );
+    if (incoming.length === 0) return;
+    // Older paginated history promotes out of the untracked remainder.
+    const newestFirst = [...(channelsChat || [])].sort(
+      (a: any, b: any) =>
+        new Date(b?.created_at).getTime() - new Date(a?.created_at).getTime(),
+    );
+    const inSnapshotWindow = new Set(
+      newestFirst
+        .slice(0, initialUnreadCountRef.current)
+        .map((m: any) => m.thread_id),
+    );
+    const historyIds = incoming
+      .filter((m: any) => !inSnapshotWindow.has(m.thread_id))
+      .map((m: any) => m.thread_id);
+    setUnreadIds(prev => {
+      const next = new Set(prev);
+      for (const m of incoming) next.add(m.thread_id);
+      return next;
+    });
+    if (historyIds.length > 0) {
+      setUntrackedUnreadCount(prev => Math.max(0, prev - historyIds.length));
+    }
+  }, [channelsChat, unreadInitialized, user?.user_id, user?.id]);
+
+  // Reset the badge only once every tracked AND untracked unread is viewed.
+  // Single RESET owner: the callback above only DECREMENTs, never RESETs.
+  const resetFiredRef = useRef(false);
+  useEffect(() => {
+    resetFiredRef.current = false;
+  }, [channel_id]);
+  useEffect(() => {
+    if (
+      unreadInitialized &&
+      !resetFiredRef.current &&
+      unreadIds.size === 0 &&
+      untrackedRef.current <= 0 &&
+      channelIdRef.current
+    ) {
+      resetFiredRef.current = true;
+      setOldestUnreadId(null);
+      dispatch({
+        type: ACTIONS.RESET_CHANNEL_THREAD_COUNT,
+        payload: channelIdRef.current,
+      });
+    }
+  }, [unreadIds, unreadInitialized, dispatch]);
 
   const { clearDraft, restoreDraft } = useMessageDraft({
     scope: 'channel',
@@ -721,7 +813,7 @@ const ChannelChatScreen = ({ navigation, route }: any) => {
                     : 'transparent',
               }}
             >
-              {item.thread_id === oldestUnreadIdRef.current && (
+              {item.thread_id === oldestUnreadId && (
                 <View style={styles.unreadSeparatorContainer}>
                   <View style={styles.unreadSeparatorLine} />
                   <View style={styles.unreadSeparatorBadge}>
