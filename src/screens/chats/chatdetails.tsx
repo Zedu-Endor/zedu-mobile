@@ -62,6 +62,7 @@ const ChatDetailScreen = ({ navigation }: any) => {
   const [deletedMessageIds, setDeletedMessageIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const [failedMessages, setFailedMessages] = useState<ChatItem[]>([]);
   const [pendingMedia, setPendingMedia] = useState<any>(null);
   const [isEditorVisible, setIsEditorVisible] = useState(false);
 
@@ -89,8 +90,15 @@ const ChatDetailScreen = ({ navigation }: any) => {
     orgId,
   } = state;
   const visibleChats = useMemo(
-    () => dmsChat.filter(m => !deletedMessageIds.has(m.thread_id)),
-    [dmsChat, deletedMessageIds],
+    () =>
+      [
+        ...failedMessages.filter(
+          failed =>
+            !dmsChat.some(chatItem => chatItem.thread_id === failed.thread_id),
+        ),
+        ...dmsChat,
+      ].filter(chatItem => !deletedMessageIds.has(chatItem.thread_id)),
+    [failedMessages, dmsChat, deletedMessageIds],
   );
   const route = useRoute<RouteProp<ChatStackParamList, 'ChatDetails'>>();
   const { channel_id, fromNotification } = route.params ?? {};
@@ -269,6 +277,7 @@ const ChatDetailScreen = ({ navigation }: any) => {
   const sendOptimisticMessage = async (
     threadId: string,
     payload: { content: string; media: any[]; mentions: any[] },
+    optimisticMessage: ChatItem,
   ) => {
     setSendStatuses(previous => ({ ...previous, [threadId]: 'sending' }));
     const result = await request({
@@ -279,6 +288,13 @@ const ChatDetailScreen = ({ navigation }: any) => {
     });
     const status = result.error ? 'failed' : 'sent';
     setSendStatuses(previous => ({ ...previous, [threadId]: status }));
+    setFailedMessages(previous => {
+      if (status !== 'failed') {
+        return previous.filter(item => item.thread_id !== threadId);
+      }
+      if (previous.some(item => item.thread_id === threadId)) return previous;
+      return [optimisticMessage, ...previous];
+    });
 
     if (status === 'sent') {
       dispatch({ type: ACTIONS.CALLBACK, payload: !state.callback });
@@ -286,11 +302,15 @@ const ChatDetailScreen = ({ navigation }: any) => {
   };
 
   const handleRetryMessage = (item: ChatItem) => {
-    return sendOptimisticMessage(item.thread_id, {
-      content: item.message,
-      media: item.media || [],
-      mentions: item.mentions || [],
-    });
+    return sendOptimisticMessage(
+      item.thread_id,
+      {
+        content: item.message,
+        media: item.media || [],
+        mentions: item.mentions || [],
+      },
+      item,
+    );
   };
 
   const handleMentionSelect = (selectedUser: any) => {
@@ -366,7 +386,7 @@ const ChatDetailScreen = ({ navigation }: any) => {
       mentions: mentionsMetadata,
     };
 
-    await sendOptimisticMessage(tempId, payload);
+    await sendOptimisticMessage(tempId, payload, optimisticMessage as ChatItem);
     clearUploads();
   };
 
@@ -567,6 +587,11 @@ const ChatDetailScreen = ({ navigation }: any) => {
               sendStatus={sendStatuses[item.thread_id]}
               onRetry={() => handleRetryMessage(item)}
               onDelete={() => {
+                setFailedMessages(previous =>
+                  previous.filter(
+                    chatItem => chatItem.thread_id !== item.thread_id,
+                  ),
+                );
                 dispatch({
                   type: ACTIONS.DELETE_DM_MESSAGE,
                   payload: { threadId: item.thread_id },
