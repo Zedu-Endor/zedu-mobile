@@ -87,6 +87,17 @@ export interface AppState {
   mentionUser: boolean;
 }
 
+/**
+ * Global store reducer.
+ *
+ * Channel thread-count contract (preserve channel unread count):
+ * - RESET_CHANNEL_THREAD_COUNT zeroes `thread_count` only and preserves
+ *   `mention_count`; it never touches DMs (they use RESET_DM_THREAD_COUNT).
+ * - SET_CHANNEL_THREAD_COUNT assigns a snapshot count for a channel.
+ * - DECREMENT_CHANNEL_THREAD_COUNT subtracts a viewed-message delta
+ *   atomically against the latest store value so a newer count arriving
+ *   mid-scroll is never overwritten by a stale snapshot.
+ */
 const reducers = (state: AppState, action: Action): AppState => {
   switch (action.type) {
     case ACTIONS.USER:

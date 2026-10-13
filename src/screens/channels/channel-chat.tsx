@@ -49,6 +49,16 @@ import ChatBackground from '@/components/layout/chat/chat-background';
 import { useMessageDraft } from '@/hooks/useMessageDraft';
 import type { ViewToken, ViewabilityConfig } from 'react-native';
 
+/**
+ * Channel chat screen with preserved channel unread count.
+ *
+ * Snapshots the navigation-time badge once, initializes the unread window
+ * after commit (newest-first sort with unloaded remainder kept in
+ * `untrackedUnreadCount`), tracks late-arriving messages, decrements the
+ * badge atomically per viewed message, and resets only when every tracked
+ * and untracked unread has been viewed. Shows an "Unread Messages"
+ * separator at the oldest tracked unread.
+ */
 const ChannelChatScreen = ({ navigation, route }: any) => {
   const { colors } = useTheme();
   const styles = useMemo(() => createChatDetailStyles(colors), [colors]);
@@ -152,18 +162,29 @@ const ChannelChatScreen = ({ navigation, route }: any) => {
     if (!channelsChat || channelsChat.length === 0) return;
     const snapshot = initialUnreadCountRef.current;
     if (!(snapshot > 0)) return;
+    const currentUserId = user?.user_id ?? user?.id;
+    if (currentUserId == null) return;
     const sorted = [...channelsChat].sort(
       (a: any, b: any) =>
         new Date(b?.created_at).getTime() - new Date(a?.created_at).getTime(),
     );
-    const count = Math.min(snapshot, sorted.length);
-    const unreadList = sorted.slice(0, count);
+    // thread_count counts others' messages only: exclude own + optimistic
+    // echoes so they can't occupy the unread window or decrement the badge.
+    const eligible = sorted.filter(
+      (m: any) =>
+        !m?.isOptimistic &&
+        m?.user_id !== undefined &&
+        m?.user_id !== null &&
+        String(m.user_id) !== String(currentUserId),
+    );
+    const count = Math.min(snapshot, eligible.length);
+    const unreadList = eligible.slice(0, count);
     const oldest = unreadList[unreadList.length - 1];
     setOldestUnreadId(oldest?.thread_id ?? null);
     setUnreadIds(new Set(unreadList.map((m: any) => m.thread_id)));
     setUntrackedUnreadCount(Math.max(0, snapshot - count));
     setUnreadInitialized(true);
-  }, [channelsChat, unreadInitialized]);
+  }, [channelsChat, unreadInitialized, user?.user_id, user?.id]);
 
   /**
    * Viewability configuration. itemVisiblePercentThreshold is a fraction of
