@@ -403,8 +403,15 @@ const ChatInput = ({
             <TouchableOpacity
               style={styles.iconBtn}
               onPress={() => {
-                Keyboard.dismiss();
-                onMediaPicker();
+                if (Keyboard.isVisible()) {
+                  const sub = Keyboard.addListener('keyboardDidHide', () => {
+                    sub.remove();
+                    onMediaPicker();
+                  });
+                  Keyboard.dismiss();
+                } else {
+                  onMediaPicker();
+                }
               }}
             >
               <Image
