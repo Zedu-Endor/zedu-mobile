@@ -89,17 +89,28 @@ const ChatDetailScreen = ({ navigation }: any) => {
     buzzShowVideo,
     orgId,
   } = state;
-  const visibleChats = useMemo(
-    () =>
-      [
-        ...failedMessages.filter(
-          failed =>
-            !dmsChat.some(chatItem => chatItem.thread_id === failed.thread_id),
-        ),
-        ...dmsChat,
-      ].filter(chatItem => !deletedMessageIds.has(chatItem.thread_id)),
-    [failedMessages, dmsChat, deletedMessageIds],
-  );
+  const visibleChats = useMemo(() => {
+    const copy = [...dmsChat];
+    failedMessages
+      .filter(
+        failed =>
+          !dmsChat.some(chatItem => chatItem.thread_id === failed.thread_id),
+      )
+      .sort(
+        (first, second) =>
+          new Date(second.created_at).getTime() -
+          new Date(first.created_at).getTime(),
+      )
+      .forEach(item => {
+        const index = copy.findIndex(
+          chatItem =>
+            new Date(chatItem.created_at) <= new Date(item.created_at),
+        );
+        if (index === -1) copy.push(item);
+        else copy.splice(index, 0, item);
+      });
+    return copy.filter(chatItem => !deletedMessageIds.has(chatItem.thread_id));
+  }, [failedMessages, dmsChat, deletedMessageIds]);
   const route = useRoute<RouteProp<ChatStackParamList, 'ChatDetails'>>();
   const { channel_id, fromNotification } = route.params ?? {};
   const participants = Array.isArray(participant) ? participant : [];
