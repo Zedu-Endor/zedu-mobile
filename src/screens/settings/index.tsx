@@ -239,7 +239,7 @@ const SettingsHome = () => {
             />
             <View style={styles.divider} />
             <SettingItem
-              icon="lock-closed"
+              icon="key-outline"
               title="Change Password"
               subtitle="Update your password"
               onPress={() =>
