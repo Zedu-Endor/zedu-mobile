@@ -96,6 +96,14 @@ const ChatInput = ({
   const skipSelectionMentionSync = useRef(false);
   const isFocusedRef = useRef(false);
 
+  const keyboardHideSubRef = useRef<ReturnType<
+    typeof Keyboard.addListener
+  > | null>(null);
+
+  useEffect(() => {
+    return () => keyboardHideSubRef.current?.remove();
+  }, []);
+
   useEffect(() => {
     messageRef.current = message;
     if (!message.trim()) {
@@ -404,10 +412,15 @@ const ChatInput = ({
               style={styles.iconBtn}
               onPress={() => {
                 if (Keyboard.isVisible()) {
-                  const sub = Keyboard.addListener('keyboardDidHide', () => {
-                    sub.remove();
-                    onMediaPicker();
-                  });
+                  keyboardHideSubRef.current?.remove();
+                  keyboardHideSubRef.current = Keyboard.addListener(
+                    'keyboardDidHide',
+                    () => {
+                      keyboardHideSubRef.current?.remove();
+                      keyboardHideSubRef.current = null;
+                      onMediaPicker();
+                    },
+                  );
                   Keyboard.dismiss();
                 } else {
                   onMediaPicker();
