@@ -250,7 +250,7 @@ const createStyles = (colors: ThemeColors) =>
       fontWeight: '600',
     },
     activePillText: {
-      color: '#059669',
+      color: '#047857',
     },
     inactivePillText: {
       color: colors.textSecondary,
@@ -440,8 +440,7 @@ const SecurityScreen = ({ navigation }: any) => {
             </AppText>
             <AppText style={styles.sectionSubtitle}>
               Review the devices and browsers that have logged in to your
-              account. If you do not recognize one, end that session and change
-              your password.
+              account. If you do not recognize one, change your password.
             </AppText>
           </View>
 
