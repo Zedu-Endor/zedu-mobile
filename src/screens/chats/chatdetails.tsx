@@ -24,7 +24,7 @@ import { MediaPickerSheet } from '@/components/layout/chat/media-picker';
 import MediaEditorModal from '@/components/layout/chat/media-editor';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { ChatStackParamList } from '@/navigation/stacks/chats';
-import { GetRequest, PostRequest, PutRequest } from '@/utils/requests';
+import { GetRequest, PutRequest, request } from '@/utils/requests';
 import { useDataContext } from '@/store/useDataContext';
 import { ChatItem } from '@/types/chats';
 import UseChatDetails from '@/services/chat/chat-details';
@@ -43,6 +43,10 @@ import { createChatDetailStyles } from '@/theme/createScreenStyles';
 import ChatBackground from '@/components/layout/chat/chat-background';
 import { useMessageDraft } from '@/hooks/useMessageDraft';
 
+const MESSAGE_SEND_TIMEOUT_MS = 15000;
+
+type MessageSendStatus = 'sending' | 'failed' | 'sent';
+
 const ChatDetailScreen = ({ navigation }: any) => {
   const { colors } = useTheme();
   const styles = useMemo(() => createChatDetailStyles(colors), [colors]);
@@ -52,6 +56,13 @@ const ChatDetailScreen = ({ navigation }: any) => {
   const actionSheetRef = useRef<any>(null);
   const pickerSheetRef = useRef<any>(null);
   const [selectedMsg, setSelectedMsg] = useState<ChatItem | null>(null);
+  const [sendStatuses, setSendStatuses] = useState<
+    Record<string, MessageSendStatus>
+  >({});
+  const [deletedMessageIds, setDeletedMessageIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [failedMessages, setFailedMessages] = useState<ChatItem[]>([]);
   const [pendingMedia, setPendingMedia] = useState<any>(null);
   const [isEditorVisible, setIsEditorVisible] = useState(false);
 
@@ -78,6 +89,28 @@ const ChatDetailScreen = ({ navigation }: any) => {
     buzzShowVideo,
     orgId,
   } = state;
+  const visibleChats = useMemo(() => {
+    const copy = [...dmsChat];
+    failedMessages
+      .filter(
+        failed =>
+          !dmsChat.some(chatItem => chatItem.thread_id === failed.thread_id),
+      )
+      .sort(
+        (first, second) =>
+          new Date(second.created_at).getTime() -
+          new Date(first.created_at).getTime(),
+      )
+      .forEach(item => {
+        const index = copy.findIndex(
+          chatItem =>
+            new Date(chatItem.created_at) <= new Date(item.created_at),
+        );
+        if (index === -1) copy.push(item);
+        else copy.splice(index, 0, item);
+      });
+    return copy.filter(chatItem => !deletedMessageIds.has(chatItem.thread_id));
+  }, [failedMessages, dmsChat, deletedMessageIds]);
   const route = useRoute<RouteProp<ChatStackParamList, 'ChatDetails'>>();
   const { channel_id, fromNotification } = route.params ?? {};
   const participants = Array.isArray(participant) ? participant : [];
@@ -252,6 +285,45 @@ const ChatDetailScreen = ({ navigation }: any) => {
     }
   };
 
+  const sendOptimisticMessage = async (
+    threadId: string,
+    payload: { content: string; media: any[]; mentions: any[] },
+    optimisticMessage: ChatItem,
+  ) => {
+    setSendStatuses(previous => ({ ...previous, [threadId]: 'sending' }));
+    const result = await request({
+      method: 'POST',
+      url: `/dms/channels/${channel_id}/threads`,
+      data: payload,
+      timeout: MESSAGE_SEND_TIMEOUT_MS,
+    });
+    const status = result.error ? 'failed' : 'sent';
+    setSendStatuses(previous => ({ ...previous, [threadId]: status }));
+    setFailedMessages(previous => {
+      if (status !== 'failed') {
+        return previous.filter(item => item.thread_id !== threadId);
+      }
+      if (previous.some(item => item.thread_id === threadId)) return previous;
+      return [optimisticMessage, ...previous];
+    });
+
+    if (status === 'sent') {
+      dispatch({ type: ACTIONS.CALLBACK, payload: !state.callback });
+    }
+  };
+
+  const handleRetryMessage = (item: ChatItem) => {
+    return sendOptimisticMessage(
+      item.thread_id,
+      {
+        content: item.message,
+        media: item.media || [],
+        mentions: item.mentions || [],
+      },
+      item,
+    );
+  };
+
   const handleMentionSelect = (selectedUser: any) => {
     if (!mentionState) return;
 
@@ -303,7 +375,8 @@ const ChatDetailScreen = ({ navigation }: any) => {
       created_at: new Date().toISOString(),
       status: 'pending',
       type: 'message',
-      media: state.media,
+      media: medias.length > 0 ? medias : state.media,
+      mentions: mentionsMetadata,
       user_id: user?.user_id,
       reactions: null,
       isOptimistic: true,
@@ -324,8 +397,7 @@ const ChatDetailScreen = ({ navigation }: any) => {
       mentions: mentionsMetadata,
     };
 
-    await PostRequest(`/dms/channels/${channel_id}/threads`, payload);
-    dispatch({ type: ACTIONS.CALLBACK, payload: !state.callback });
+    await sendOptimisticMessage(tempId, payload, optimisticMessage as ChatItem);
     clearUploads();
   };
 
@@ -497,7 +569,7 @@ const ChatDetailScreen = ({ navigation }: any) => {
 
       <FlatList
         ref={flatListRef}
-        data={dmsChat}
+        data={visibleChats}
         inverted
         showsVerticalScrollIndicator={false}
         keyExtractor={item => item.thread_id}
@@ -519,10 +591,26 @@ const ChatDetailScreen = ({ navigation }: any) => {
                 sent: item.user_id === user.user_id,
               }}
               index={index}
-              messages={dmsChat}
+              messages={visibleChats}
               onLongPress={() => handleLongPress(item)}
               editMsgId={editMsgId}
               onEdit={onEdit}
+              sendStatus={sendStatuses[item.thread_id]}
+              onRetry={() => handleRetryMessage(item)}
+              onDelete={() => {
+                setFailedMessages(previous =>
+                  previous.filter(
+                    chatItem => chatItem.thread_id !== item.thread_id,
+                  ),
+                );
+                dispatch({
+                  type: ACTIONS.DELETE_DM_MESSAGE,
+                  payload: { threadId: item.thread_id },
+                });
+                setDeletedMessageIds(
+                  previous => new Set([...previous, item.thread_id]),
+                );
+              }}
             />
           </View>
         )}
