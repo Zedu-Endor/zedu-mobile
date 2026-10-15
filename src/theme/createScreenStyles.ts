@@ -1273,7 +1273,7 @@ export function createChatInfoStyles(colors: ThemeColors) {
       fontSize: 16,
       color: colors.textPrimary,
     },
-    detailsGrid: { gap: 16 },
+    detailsGrid: { gap: 16, marginTop: 16 },
     infoCard: {
       flexDirection: 'row',
       alignItems: 'center',
