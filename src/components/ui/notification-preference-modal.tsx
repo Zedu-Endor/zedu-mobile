@@ -176,7 +176,18 @@ const NotificationPreferenceScreen: React.FC<
             <AppText style={styles.note}>
               Note: You can set notification keywords and change your
               workspace-wide settings in your{' '}
-              <AppText style={styles.link}>settings</AppText>.
+              <AppText
+                style={styles.link}
+                accessibilityRole="link"
+                onPress={() =>
+                  navigation.navigate('SettingStack', {
+                    screen: 'Notifications',
+                  })
+                }
+              >
+                settings
+              </AppText>
+              .
             </AppText>
 
             <View style={styles.buttonRow}>
