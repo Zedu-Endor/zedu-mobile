@@ -21,6 +21,7 @@ import { ThemedRefreshControl } from '@/components/ui/themed-refresh-control';
 import { useMentions, MentionApiItem } from '@/services/mentions/useMentions';
 import moment from 'moment';
 import FontAwesome5Icon from 'react-native-vector-icons/FontAwesome5';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { ACTIONS } from '@/store/types';
 import ChatSkeleton from '@/components/skeleton/chat-skeleton';
 import { UserAvatar } from '../channels/user-avatar';
@@ -39,6 +40,7 @@ const MentionsScreen = () => {
     mentionList,
     isLoading,
     isFetchingMore,
+    hasMore,
     refreshing,
     handleLoadMore,
     onRefresh,
@@ -177,11 +179,40 @@ const MentionsScreen = () => {
           ))}
         </ScrollView>
       ) : mentionList.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <AppText size={14} style={styles.emptyText}>
-            No mentions yet
-          </AppText>
-        </View>
+        <ScrollView
+          contentContainerStyle={styles.emptyScrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <ThemedRefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+            />
+          }
+        >
+          <View style={styles.emptyContainer}>
+            <Image
+              source={require('@/assets/icons/thread.png')}
+              style={styles.emptyImage}
+              resizeMode="contain"
+            />
+            <AppText variant="bold" style={styles.emptyTitle}>
+              No threads yet
+            </AppText>
+            <AppText style={styles.emptySubtitle}>
+              When someone replies to your message or mentions you in a thread,
+              it shows up here so you can jump straight back in.
+            </AppText>
+            <TouchableOpacity
+              style={styles.browseButton}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('Channels' as any)}
+            >
+              <AppText variant="bold" style={styles.browseButtonText}>
+                Browse channels
+              </AppText>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       ) : (
         <FlatList
           data={mentionList}
@@ -201,6 +232,20 @@ const MentionsScreen = () => {
             isFetchingMore ? (
               <View style={styles.footerLoader}>
                 <ActivityIndicator color={colors.primary} size="small" />
+              </View>
+            ) : !hasMore ? (
+              <View style={styles.endOfListContainer}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={normalize(32)}
+                  color={colors.primary}
+                />
+                <AppText variant="bold" style={styles.endOfListTitle}>
+                  You're all caught up
+                </AppText>
+                <AppText style={styles.endOfListSubtext}>
+                  New replies and mentions will appear at the top.
+                </AppText>
               </View>
             ) : (
               <View style={{ height: 20 }} />
