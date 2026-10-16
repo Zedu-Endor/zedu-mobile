@@ -282,18 +282,65 @@ export function createMentionListStyles(colors: ThemeColors) {
     listContent: {
       flexGrow: 1,
     },
+    emptyScrollContent: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
     emptyContainer: {
       flex: 1,
       justifyContent: 'center',
       alignItems: 'center',
+      paddingHorizontal: normalize(32),
     },
-    emptyText: {
+    emptyImage: {
+      width: normalize(64),
+      height: normalize(64),
+      tintColor: colors.primary,
+      marginBottom: normalize(20),
+    },
+    emptyTitle: {
+      fontSize: normalize(18),
+      color: colors.textPrimary,
+      marginBottom: normalize(8),
+    },
+    emptySubtitle: {
+      fontSize: normalize(14),
       color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: normalize(20),
+      marginBottom: normalize(24),
+    },
+    browseButton: {
+      backgroundColor: colors.primary,
+      paddingVertical: normalize(12),
+      paddingHorizontal: normalize(24),
+      borderRadius: normalize(12),
+    },
+    browseButtonText: {
+      color: colors.white,
+      fontSize: normalize(15),
     },
     footerLoader: {
       paddingVertical: normalize(20),
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    endOfListContainer: {
+      alignItems: 'center',
+      paddingVertical: normalize(32),
+      paddingHorizontal: normalize(20),
+    },
+    endOfListTitle: {
+      fontSize: normalize(16),
+      color: colors.textPrimary,
+      marginTop: normalize(8),
+      marginBottom: normalize(4),
+    },
+    endOfListSubtext: {
+      fontSize: normalize(13),
+      color: colors.textSecondary,
+      textAlign: 'center',
     },
   });
 }
