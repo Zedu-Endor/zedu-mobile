@@ -253,7 +253,7 @@ const SettingsHome = () => {
           <View style={[styles.groupCard, { marginTop: 24 }]}>
             <SettingItem
               icon="log-out-outline"
-              title="Sign out"
+              title="Log out"
               isDestructive
               onPress={() => setLogoutModalVisible(true)}
             />
