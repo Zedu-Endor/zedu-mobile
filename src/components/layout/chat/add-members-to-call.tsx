@@ -10,7 +10,7 @@ import { AppText } from '@/components/ui/text';
 import { useTheme } from '@/theme/ThemeProvider';
 import { createMemberPickerStyles } from '@/theme/createScreenStyles';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { groupUsersAlphabetically } from '@/utils/grouping';
+import { dmGroupUsersAlphabetically } from '@/utils/dm-grouping';
 import { normalize } from '@/utils/normalize';
 import FontAwesome5Icon from 'react-native-vector-icons/FontAwesome5';
 
@@ -129,7 +129,7 @@ export const AddMembersToCall = ({ onClose, onAddMembers }: any) => {
   );
 
   const groupedSections = useMemo(
-    () => groupUsersAlphabetically(filteredFlatList),
+    () => dmGroupUsersAlphabetically(filteredFlatList),
     [filteredFlatList],
   );
 
