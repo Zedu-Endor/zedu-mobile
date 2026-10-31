@@ -11,7 +11,9 @@ import Container from '@/components/layout/container';
 import { useTheme } from '@/theme/ThemeProvider';
 import { launchCamera } from 'react-native-image-picker';
 import { ThemedEmojiKeyboard } from '@/components/ui/themed-emoji-keyboard';
-import MessageItem from '@/components/layout/chat/messagItem';
+import MessageItem, {
+  MessageAvatarUser,
+} from '@/components/layout/chat/messagItem';
 import MentionUserBottomSheet, {
   MentionUserBottomSheetRef,
 } from '@/components/layout/chat/mention-user-bottomsheet';
@@ -44,6 +46,7 @@ import { useMessageDraft } from '@/hooks/useMessageDraft';
 import StickyDateLabel from '@/components/layout/chat/sticky-date-label';
 import { useStickyDateLabel } from '@/hooks/useStickyDateLabel';
 import { UserAvatar } from '@/screens/channels/user-avatar';
+import { getSenderAvatarSlot } from '@/utils/chat-message-layout';
 
 const ChatDetailScreen = ({ navigation }: any) => {
   const { colors } = useTheme();
@@ -95,6 +98,29 @@ const ChatDetailScreen = ({ navigation }: any) => {
   const { loadMore, isFetchingMore } = UseChatDetails({
     channel_id: channel_id || '',
   });
+  // Avatar slot and user for every message, worked out once per message list
+  // rather than on each row render.
+  const messageAvatars = useMemo(
+    () =>
+      dmsChat.map((item: any, index: number) => ({
+        slot: getSenderAvatarSlot(dmsChat, index),
+        user: (item.user_id === user?.user_id
+          ? {
+              avatar_url: user?.avatar_url,
+              default_avatar_url: user?.default_avatar_url,
+              name: user?.full_name || user?.username,
+            }
+          : {
+              avatar_url: item.avatar_url || headerParticipant?.avatar_url,
+              default_avatar_url:
+                item.default_avatar_url ||
+                headerParticipant?.default_avatar_url,
+              name:
+                item.full_name || item.username || headerParticipant?.username,
+            }) as MessageAvatarUser,
+      })),
+    [dmsChat, user, headerParticipant],
+  );
   const { uploadFiles, clearUploads } = useFileUpload();
   const mentionUserSheetRef = useRef<MentionUserBottomSheetRef>(null);
   const [callLoading, setCallLoading] = useState(false);
@@ -552,6 +578,8 @@ const ChatDetailScreen = ({ navigation }: any) => {
               onLongPress={() => handleLongPress(item)}
               editMsgId={editMsgId}
               onEdit={onEdit}
+              avatarSlot={messageAvatars[index]?.slot}
+              avatarUser={messageAvatars[index]?.user}
             />
           </View>
         )}
