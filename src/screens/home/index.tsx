@@ -26,6 +26,7 @@ import { Chat } from '@/types/chats';
 import { ACTIONS } from '@/store/types';
 import UseGetOrg from '@/services/org/get-org';
 import GeneralNotificationConnection from '@/centrifugoo/general-notification-connection';
+import StatusConnection from '@/centrifugoo/status-connection';
 import { OneSignal } from 'react-native-onesignal';
 import { ONESIGNAL_APP_ID } from '@env';
 import { PostRequest, PutRequest } from '@/utils/requests';
@@ -36,6 +37,7 @@ import {
   isFcmPlatform,
   registerAndroidPushDevice,
 } from '@/services/push-notifications.service';
+import { UserAvatar } from '@/screens/channels/user-avatar';
 
 const HomeScreen = () => {
   const navigation = useNavigation<DrawerNavigationProp<RootStackParamList>>();
@@ -171,6 +173,7 @@ const HomeScreen = () => {
   return (
     <Container color={colors.secondary} dark={true}>
       <GeneralNotificationConnection />
+      <StatusConnection />
       <UseGetOrg />
       <View style={styles.topHeader}>
         <View style={styles.profileTop}>
@@ -196,7 +199,7 @@ const HomeScreen = () => {
             </AppText>
           </TouchableOpacity>
 
-          <UserAvatarWithStatus user={user} />
+          <UserAvatarWithStatus user={user} badgeRingColor={colors.secondary} />
         </View>
 
         <View style={styles.searchBar}>
@@ -301,6 +304,10 @@ const HomeScreen = () => {
               renderItem={({ item }) => {
                 const isDM = item.channel_type === 'dm';
                 const participant = isDM ? item.participants?.[0] : null;
+                const otherUser =
+                  item.participants?.find(p => p.user_id !== user?.user_id) ??
+                  participant;
+                const isOtherUserOnline = Boolean(otherUser?.online);
 
                 const handleAvatarPress = () => {
                   if (!isDM || !participant) return;
@@ -328,15 +335,25 @@ const HomeScreen = () => {
                         style={styles.avatarWrapper}
                         onPress={handleAvatarPress}
                         activeOpacity={0.7}
-                        accessibilityLabel={`View ${participant.username}'s profile`}
+                        accessibilityLabel={`View ${
+                          participant.username
+                        }'s profile, ${
+                          isOtherUserOnline ? 'online' : 'offline'
+                        }`}
                         accessibilityRole="button"
                         accessibilityHint="Opens user profile"
                       >
-                        <Image
-                          source={{
-                            uri: item.avatar_url || item.default_avatar_url,
+                        <UserAvatar
+                          user={{
+                            avatar_url: item.avatar_url,
+                            default_avatar_url: item.default_avatar_url,
+                            online: isOtherUserOnline,
                           }}
-                          style={styles.chatAvatar}
+                          size={45}
+                          badgeSize={12}
+                          badgeRingColor={colors.background}
+                          fallbackName={item.username}
+                          disabled
                         />
                       </TouchableOpacity>
                     ) : (

@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
-  Image,
   FlatList,
   TouchableOpacity,
   Keyboard,
@@ -44,6 +43,7 @@ import ChatBackground from '@/components/layout/chat/chat-background';
 import { useMessageDraft } from '@/hooks/useMessageDraft';
 import StickyDateLabel from '@/components/layout/chat/sticky-date-label';
 import { useStickyDateLabel } from '@/hooks/useStickyDateLabel';
+import { UserAvatar } from '@/screens/channels/user-avatar';
 
 const ChatDetailScreen = ({ navigation }: any) => {
   const { colors } = useTheme();
@@ -467,13 +467,17 @@ const ChatDetailScreen = ({ navigation }: any) => {
         </TouchableOpacity>
 
         <View style={styles.headerAvatarContainer}>
-          <Image
-            source={{
-              uri:
-                headerParticipant?.avatar_url ||
-                headerParticipant?.default_avatar_url,
+          <UserAvatar
+            user={{
+              avatar_url: headerParticipant?.avatar_url,
+              default_avatar_url: headerParticipant?.default_avatar_url,
+              online: headerParticipant?.online,
             }}
-            style={styles.headerAvatar}
+            size={36}
+            badgeSize={12}
+            badgeRingColor={colors.topNavigation}
+            fallbackName={headerParticipant?.username}
+            disabled
           />
         </View>
         <TouchableOpacity
@@ -485,9 +489,22 @@ const ChatDetailScreen = ({ navigation }: any) => {
             })
           }
         >
-          <AppText variant="bold" size={15}>
+          <AppText variant="bold" size={15} numberOfLines={1}>
             {headerParticipant?.username}
           </AppText>
+          {headerParticipant && (
+            <AppText
+              size={12}
+              style={[
+                styles.headerPresenceText,
+                headerParticipant.online
+                  ? styles.headerPresenceOnline
+                  : styles.headerPresenceOffline,
+              ]}
+            >
+              {headerParticipant.online ? 'Online' : 'Offline'}
+            </AppText>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity
