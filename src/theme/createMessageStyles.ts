@@ -73,6 +73,22 @@ export function createMessageItemStyles(colors: ThemeColors, width: number) {
     },
     replyBarSentWithAvatar: { marginRight: 8 + normalize(28) + 6 },
     replyBarReceivedWithAvatar: { marginLeft: 8 + normalize(28) + 6 },
+    newMarker: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 4,
+      marginBottom: 10,
+    },
+    newMarkerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: colors.unreadMarker,
+    },
+    newMarkerText: {
+      color: colors.unreadMarker,
+      letterSpacing: 0.6,
+      marginLeft: 6,
+    },
     bubble: {
       padding: 4,
       borderRadius: 12,

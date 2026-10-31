@@ -1,4 +1,5 @@
 import {
+  getFirstUnreadMessageId,
   getSenderAvatarSlot,
   LayoutMessage,
 } from '@/utils/chat-message-layout';
@@ -65,5 +66,52 @@ describe('getSenderAvatarSlot', () => {
     ];
 
     expect(getSenderAvatarSlot(messages, 1)).toBe('spacer');
+  });
+});
+
+describe('getFirstUnreadMessageId', () => {
+  it('returns null when there is nothing unread', () => {
+    const messages = [msg('m2', THEM), msg('m1', THEM)];
+
+    expect(getFirstUnreadMessageId(messages, 0, ME)).toBeNull();
+  });
+
+  it('returns null for an empty conversation', () => {
+    expect(getFirstUnreadMessageId([], 3, ME)).toBeNull();
+  });
+
+  it('marks the oldest of the unread incoming messages', () => {
+    const messages = [
+      msg('m4', THEM),
+      msg('m3', THEM),
+      msg('m2', THEM),
+      msg('m1', THEM),
+    ];
+
+    expect(getFirstUnreadMessageId(messages, 2, ME)).toBe('m3');
+  });
+
+  it('never starts the marker on the current user’s own messages', () => {
+    const messages = [
+      msg('m5', ME),
+      msg('m4', THEM),
+      msg('m3', ME),
+      msg('m2', THEM),
+      msg('m1', THEM),
+    ];
+
+    expect(getFirstUnreadMessageId(messages, 2, ME)).toBe('m2');
+  });
+
+  it('falls back to the oldest loaded incoming message when the count exceeds what is loaded', () => {
+    const messages = [msg('m3', THEM), msg('m2', THEM), msg('m1', ME)];
+
+    expect(getFirstUnreadMessageId(messages, 10, ME)).toBe('m2');
+  });
+
+  it('returns null when only the current user’s messages are loaded', () => {
+    const messages = [msg('m2', ME), msg('m1', ME)];
+
+    expect(getFirstUnreadMessageId(messages, 1, ME)).toBeNull();
   });
 });

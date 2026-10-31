@@ -46,7 +46,10 @@ import { useMessageDraft } from '@/hooks/useMessageDraft';
 import StickyDateLabel from '@/components/layout/chat/sticky-date-label';
 import { useStickyDateLabel } from '@/hooks/useStickyDateLabel';
 import { UserAvatar } from '@/screens/channels/user-avatar';
-import { getSenderAvatarSlot } from '@/utils/chat-message-layout';
+import {
+  getFirstUnreadMessageId,
+  getSenderAvatarSlot,
+} from '@/utils/chat-message-layout';
 
 const ChatDetailScreen = ({ navigation }: any) => {
   const { colors } = useTheme();
@@ -91,13 +94,75 @@ const ChatDetailScreen = ({ navigation }: any) => {
     orgId,
   } = state;
   const route = useRoute<RouteProp<ChatStackParamList, 'ChatDetails'>>();
-  const { channel_id, fromNotification } = route.params ?? {};
+  const { channel_id, fromNotification, unread_count } = route.params ?? {};
   const participants = Array.isArray(participant) ? participant : [];
   const headerParticipant =
     participants.find(p => p.user_id !== user?.user_id) || participants[0];
-  const { loadMore, isFetchingMore } = UseChatDetails({
+  const { loadMore, isFetchingMore, isInitialLoading } = UseChatDetails({
     channel_id: channel_id || '',
   });
+  // Unread count is captured by the Chats list before the chat is marked as
+  // read; the marker is resolved once per visit so it stays put.
+  const unreadSnapshot = useRef({ count: 0, resolved: false });
+  const [newMarkerId, setNewMarkerId] = useState<string | null>(null);
+
+  useEffect(() => {
+    unreadSnapshot.current = { count: unread_count ?? 0, resolved: false };
+    setNewMarkerId(null);
+    // Only reset when the conversation changes, not when params are re-read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channel_id]);
+
+  useEffect(() => {
+    const snapshot = unreadSnapshot.current;
+    if (snapshot.resolved || isInitialLoading) return;
+    snapshot.resolved = true;
+    setNewMarkerId(
+      getFirstUnreadMessageId(dmsChat, snapshot.count, user?.user_id),
+    );
+  }, [isInitialLoading, dmsChat, user?.user_id]);
+
+  const scrolledToMarker = useRef<string | null>(null);
+  const markerScrollRetries = useRef(0);
+  useEffect(() => {
+    if (!newMarkerId || scrolledToMarker.current === newMarkerId) return;
+    const index = dmsChat.findIndex(
+      (entry: any) => entry.thread_id === newMarkerId,
+    );
+    if (index < 0) return;
+    scrolledToMarker.current = newMarkerId;
+    markerScrollRetries.current = 0;
+    // Inverted list: viewPosition near 1 puts the marker near the top of the
+    // screen with the new messages below it; offsets clamp at the latest.
+    const timer = setTimeout(() => {
+      flatListRef.current?.scrollToIndex({
+        index,
+        viewPosition: 0.9,
+        animated: false,
+      });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [newMarkerId, dmsChat]);
+
+  const handleScrollToIndexFailed = (info: {
+    index: number;
+    averageItemLength: number;
+  }) => {
+    if (markerScrollRetries.current >= 3) return;
+    markerScrollRetries.current += 1;
+    flatListRef.current?.scrollToOffset({
+      offset: info.averageItemLength * info.index,
+      animated: false,
+    });
+    setTimeout(() => {
+      flatListRef.current?.scrollToIndex({
+        index: info.index,
+        viewPosition: 0.9,
+        animated: false,
+      });
+    }, 100);
+  };
+
   const getAvatarUser = (item: any): MessageAvatarUser =>
     item.user_id === user?.user_id
       ? {
@@ -546,6 +611,7 @@ const ChatDetailScreen = ({ navigation }: any) => {
         viewabilityConfig={viewabilityConfig}
         showsVerticalScrollIndicator={false}
         keyExtractor={item => item.thread_id}
+        onScrollToIndexFailed={handleScrollToIndexFailed}
         renderItem={({ item, index }) => (
           <View
             style={{
@@ -570,6 +636,7 @@ const ChatDetailScreen = ({ navigation }: any) => {
               onEdit={onEdit}
               avatarSlot={getSenderAvatarSlot(dmsChat, index)}
               avatarUser={getAvatarUser(item)}
+              showNewMarker={item.thread_id === newMarkerId}
             />
           </View>
         )}
