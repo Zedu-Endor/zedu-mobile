@@ -45,6 +45,7 @@ const MessageItem = ({
   onEdit,
   avatarSlot,
   avatarUser,
+  showNewMarker = false,
 }: any) => {
   const { colors } = useTheme();
   const styles = useMemo(
@@ -276,6 +277,19 @@ const MessageItem = ({
               lastWeek: 'MMMM D, YYYY',
               sameElse: 'MMMM D, YYYY',
             })}
+          </AppText>
+        </View>
+      )}
+
+      {showNewMarker && (
+        <View
+          style={styles.newMarker}
+          accessible
+          accessibilityLabel="New messages"
+        >
+          <View style={styles.newMarkerLine} />
+          <AppText variant="bold" size={10.5} style={styles.newMarkerText}>
+            NEW
           </AppText>
         </View>
       )}
